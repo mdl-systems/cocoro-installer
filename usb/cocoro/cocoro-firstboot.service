@@ -1,0 +1,15 @@
+[Unit]
+Description=cocoro-core First Boot Setup
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/opt/cocoro/firstboot.sh
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /opt/cocoro/firstboot.sh
+RemainAfterExit=yes
+StandardOutput=journal+console
+StandardError=journal+console
+
+[Install]
+WantedBy=multi-user.target

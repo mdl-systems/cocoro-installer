@@ -1,0 +1,19 @@
+# Do not commit credentials or secrets
+*.pem
+*.key
+*.env
+!.env.example
+
+# Packer build artifacts
+output/
+packer_cache/
+ovmf_vars.fd
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
