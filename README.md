@@ -1,16 +1,50 @@
 # cocoro-installer
 
-工場キッティング用 Debian 13 自動インストール USB — miniPC 向けゼロタッチ OS セットアップ + cocoro-core デプロイ
+工場キッティング用 Debian 13 自動インストール USB + フルスタック Cocoro OS セットアップ
 
 ## 概要
 
-USB を挿して電源を入れるだけで、miniPC (Intel N95) に **cocoro OS** が自動インストールされます。
+USB を挿して電源を入れるだけで、miniPC (Intel N95) に **cocoro OS** が全サービス自動インストールされます。
 
 ```
-USB ブート → GRUB 自動選択(3秒) → Debian 無人インストール → 再起動 → Docker + cocoro-core セットアップ → 完了
+USB ブート → GRUB 自動選択(3秒) → Debian 無人インストール
+  → 再起動 → Docker + 全 Cocoro サービス セットアップ → 完了
 ```
 
-## クイックスタート
+## ワンライナーインストール
+
+既存の Debian/Ubuntu 環境に Cocoro OS をインストールする場合：
+
+```bash
+curl -fsSL https://install.cocoro.ai | bash
+```
+
+インストール時に対話的に以下を設定します：
+
+| 設定項目 | 説明 |
+|---|---|
+| `GEMINI_API_KEY` | Google AI Studio のAPIキー |
+| `MINIPC_IP` | miniPC の IP アドレス (例: 192.168.50.92) |
+| `COCORO_API_KEY` | クライアント接続用 APIキー (デフォルト: cocoro-2026) |
+
+## 自動インストールされるサービス
+
+| サービス | ポート | 説明 |
+|---|---|---|
+| cocoro-network | — | Docker ブリッジネットワーク (cocoro-net) |
+| cocoro-core | 8000 | メイン AI エンジン (Personality / Memory / Emotion) |
+| cocoro-agent | 8002 | 専門職エージェント (ECHO, IRIS 等) |
+| cocoro-console | 3000 | ブラウザ UI コンソール |
+
+### ヘルスチェック
+
+```bash
+curl http://localhost:8000/health   # cocoro-core  ✅
+curl http://localhost:8002/health   # cocoro-agent ✅
+curl http://localhost:3000          # cocoro-console ✅
+```
+
+## クイックスタート（USB インストーラー方式）
 
 ### 方法 1: カスタム ISO をビルド → Rufus で USB に書き込み（推奨）
 
@@ -69,33 +103,33 @@ chmod +x usb/deploy-to-usb.sh
 | コンポーネント | 詳細 |
 |---|---|
 | Docker CE | 最新版 (get.docker.com 経由) |
-| cocoro-core | `/opt/cocoro/core` にクローン |
+| cocoro-network | Docker ブリッジネットワーク (172.20.0.0/16) |
+| cocoro-core | `/opt/cocoro/core` にクローン・起動 |
+| cocoro-agent | `/opt/cocoro/agent` にクローン・起動 |
+| cocoro-console | `/opt/cocoro/console` にクローン・起動 |
 | データディレクトリ | PostgreSQL (UID 999), Redis, backups, logs, config |
 | カーネル最適化 | ip_forward, file-max, swappiness, somaxconn 等 |
 | zram | RAM の 25% を圧縮スワップとして使用 |
-| UFW | SSH, mDNS (5353), API (8080/8443) を許可 |
+| UFW | SSH, mDNS, API (8000/8002/3000) を許可 |
 | avahi-daemon | mDNS (`cocoro.local`) による名前解決 |
 
 ## プロジェクト構成
 
 ```
 cocoro-installer/
+├── install.sh                        # ワンライナーインストーラー ★メイン
 ├── usb/                              # USB インストーラー関連
 │   ├── preseed.cfg                   # Debian 自動応答設定
 │   ├── cocoro/
-│   │   ├── firstboot.sh              # 初回起動セットアップスクリプト
+│   │   ├── firstboot.sh              # 初回起動セットアップスクリプト（全サービス対応）
 │   │   └── cocoro-firstboot.service  # systemd サービス定義
 │   ├── build-iso.sh                  # カスタム ISO ビルドスクリプト
 │   ├── deploy-to-usb.sh              # USB 直接配置スクリプト
 │   └── isolinux-txt.cfg              # BIOS ブートメニュー設定
 ├── http/                             # Packer HTTP サーバー用 (レガシー)
-│   ├── preseed.cfg
-│   └── setup.sh
 ├── scripts/                          # Packer スクリプト (レガシー)
-│   ├── setup.sh
-│   └── firstboot.sh
 ├── build.pkr.hcl                     # Packer ビルド定義 (レガシー)
-├── Makefile                          # ビルドコマンド
+├── Makefile
 ├── .gitattributes                    # LF 改行コード強制
 └── .gitignore
 ```
@@ -107,8 +141,9 @@ cocoro-installer/
 3. miniPC に USB を挿入
 4. 電源 ON → USB ブート（BIOS で USB 優先に設定済みの前提）
 5. **操作不要** — 自動でインストール完了
-6. 再起動後、firstboot が Docker 等をセットアップ（約 20 秒）
-7. USB を抜いて梱包
+6. 再起動後、firstboot が全 Cocoro サービスをセットアップ（約 5 分）
+7. 検品確認（下記コマンド参照）
+8. USB を抜いて梱包
 
 ### 検品確認
 
@@ -116,11 +151,17 @@ cocoro-installer/
 ssh cocoro-admin@cocoro.local
 # パスワード: cocoro-factory-2026
 
-# 動作確認コマンド
+# 基本確認
 docker --version
 systemctl status docker
 df -h
 cat /etc/cocoro-release
+
+# サービス確認
+docker ps
+curl http://localhost:8000/health   # cocoro-core
+curl http://localhost:8002/health   # cocoro-agent
+curl http://localhost:3000          # cocoro-console
 ```
 
 ## 対象ハードウェア

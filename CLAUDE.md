@@ -12,7 +12,7 @@ USBを挿して電源を入れるだけで、miniPC (Intel N95) に cocoro OS �
 
 ```
 USB ブート → GRUB 自動選択(3秒) → Debian 無人インストール
-  → 再起動 → Docker + cocoro-core セットアップ → 完了（約20秒）
+  → 再起動 → Docker + 全 Cocoro サービス セットアップ → 完了（約5分）
 ```
 
 - **言語**: Shell
@@ -112,11 +112,14 @@ cat /etc/cocoro-release
 | コンポーネント | 詳細 |
 |--------------|------|
 | Docker CE | 最新版 (get.docker.com 経由) |
-| cocoro-core | `/opt/cocoro/core` にクローン |
+| cocoro-network | Docker ブリッジネットワーク (172.20.0.0/16) |
+| cocoro-core | `/opt/cocoro/core` にクローン・起動 |
+| cocoro-agent | `/opt/cocoro/agent` にクローン・起動 |
+| cocoro-console | `/opt/cocoro/console` にクローン・起動 |
 | データディレクトリ | PostgreSQL (UID 999), Redis, backups, logs, config |
 | カーネル最適化 | ip_forward, file-max, swappiness, somaxconn 等 |
 | zram | RAM の 25% を圧縮スワップとして使用 |
-| UFW | SSH, mDNS (5353), API (8080/8443) を許可 |
+| UFW | SSH, mDNS (5353), API (8000/8002/3000) を許可 |
 | avahi-daemon | mDNS (`cocoro.local`) による名前解決 |
 
 ---
@@ -138,12 +141,13 @@ cat /etc/cocoro-release
 
 ```
 cocoro-installer/
+├── install.sh                        # ワンライナーインストーラー ★メイン
 ├── usb/
 │   ├── preseed.cfg                   # Debian 自動応答設定
 │   ├── cocoro/
-│   │   ├── firstboot.sh              # 初回起動セットアップスクリプト
+│   │   ├── firstboot.sh              # 初回起動セットアップスクリプト（全サービス対応）
 │   │   └── cocoro-firstboot.service  # systemd サービス定義
-│   ├── build-iso.sh                  # カスタムISOビルドスクリプト ★メイン
+│   ├── build-iso.sh                  # カスタムISOビルドスクリプト
 │   ├── deploy-to-usb.sh              # USB直接配置スクリプト
 │   └── isolinux-txt.cfg              # BIOSブートメニュー設定
 ├── http/                             # Packer HTTPサーバー用（レガシー）
@@ -153,7 +157,7 @@ cocoro-installer/
 └── .gitattributes                    # LF改行コード強制
 ```
 
-> `http/` `scripts/` `build.pkr.hcl` はレガシーファイル。現在は `usb/` 配下を使用。
+> `http/` `scripts/` `build.pkr.hcl` はレガシーファイル。現在は `install.sh` および `usb/` 配下を使用。
 
 ---
 
@@ -172,3 +176,4 @@ cocoro-installer/
 | 日付 | 更新内容 |
 |------|---------|
 | 2026-03-08 | 初版作成 |
+| 2026-03-14 | フルスタック対応: install.sh 追加、firstboot.sh を全サービス対応に更新 |
