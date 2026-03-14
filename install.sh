@@ -2,7 +2,7 @@
 # ============================================================================
 # Cocoro OS — Full Stack Installer
 # ============================================================================
-# curl -fsSL https://install.cocoro.ai | bash
+# curl -fsSL https://raw.githubusercontent.com/mdl-systems/cocoro-installer/main/install.sh | bash
 #
 # 自動インストール対象:
 #   1. cocoro-network  (Dockerネットワーク)
@@ -38,15 +38,14 @@ hr()      { echo -e "${CYAN}$(printf '─%.0s' {1..60})${RESET}"; }
 print_banner() {
   echo ""
   echo -e "${CYAN}${BOLD}"
-  echo "  ██████╗ ██████╗  ██████╗ ██████╗  ██████╗"
-  echo " ██╔════╝██╔═══██╗██╔════╝██╔═══██╗██╔═══██╗"
-  echo " ██║     ██║   ██║██║     ██║   ██║██████╔╝"
-  echo " ██║     ██║   ██║██║     ██║   ██║██╔══██╗"
-  echo " ╚██████╗╚██████╔╝╚██████╗╚██████╔╝██║  ██║"
-  echo "  ╚═════╝ ╚═════╝  ╚═════╝ ╚═════╝ ╚═╝  ╚═╝"
+  echo " ██████╗ ██████╗  ██████╗ ██████╗  ██████╗"
+  echo "██╔════╝██╔═══██╗██╔════╝██╔═══██╗██╔═══██╗"
+  echo "██║     ██║   ██║██║     ██║   ██║██║   ██║"
+  echo "██║     ██║   ██║██║     ██║   ██║██║   ██║"
+  echo "╚██████╗╚██████╔╝╚██████╗╚██████╔╝╚██████╔╝"
+  echo " ╚═════╝ ╚═════╝  ╚═════╝ ╚═════╝  ╚═════╝"
   echo -e "${RESET}"
-  echo -e "  ${BOLD}Cocoro OS — Full Stack Installer v2.0${RESET}"
-  echo -e "  ${CYAN}Personality AI on your miniPC${RESET}"
+  echo -e "        ${BOLD}AI Personality OS Installer v1.0.0${RESET}"
   echo ""
 }
 
@@ -388,24 +387,30 @@ health_check() {
 # 完了メッセージ
 # ----------------------------------------------------------------------------
 print_summary() {
+  local node_ip
+  node_ip=$(hostname -I | awk '{print $1}' 2>/dev/null || echo "${MINIPC_IP}")
+
   hr
   echo ""
-  echo -e "${BOLD}${GREEN}🎉 Cocoro OS インストール完了！${RESET}"
+  echo -e "${BOLD}${GREEN}✅ インストール完了！${RESET}"
   echo ""
-  echo -e "${BOLD}アクセス情報：${RESET}"
-  echo -e "  🤖 cocoro-core   : ${CYAN}http://${MINIPC_IP}:8000${RESET}"
-  echo -e "  🦾 cocoro-agent  : ${CYAN}http://${MINIPC_IP}:8002${RESET}"
-  echo -e "  🖥️  cocoro-console: ${CYAN}http://${MINIPC_IP}:3000${RESET}"
+  echo -e "${BOLD}📍 アクセス方法：${RESET}"
+  echo -e "   ブラウザ: ${CYAN}http://${node_ip}${RESET}       (cocoro-console)"
+  echo -e "   API:     ${CYAN}http://${node_ip}:8000${RESET}   (cocoro-core)"
+  echo -e "   Agent:   ${CYAN}http://${node_ip}:8002${RESET}   (cocoro-agent)"
+  echo ""
+  echo -e "${BOLD}🚀 次のステップ：${RESET}"
+  echo -e "   1. ブラウザでアクセス → ${CYAN}http://${node_ip}${RESET}"
+  echo -e "   2. Boot Wizard で人格設定（40問）"
+  echo -e "   3. AI と会話を始めよう！"
+  echo ""
+  echo -e "${BOLD}📚 ドキュメント: ${CYAN}https://docs.cocoro.ai${RESET}"
+  echo -e "${BOLD}🐙 GitHub:       ${CYAN}https://github.com/mdl-systems${RESET}"
   echo ""
   echo -e "${BOLD}管理コマンド：${RESET}"
   echo -e "  全サービス状態確認 : ${YELLOW}docker ps${RESET}"
-  echo -e "  core ログ確認     : ${YELLOW}docker compose -f ${CORE_DIR}/docker-compose.yml logs -f${RESET}"
-  echo -e "  agent ログ確認    : ${YELLOW}docker compose -f ${AGENT_DIR}/docker-compose.yml logs -f${RESET}"
-  echo ""
-  echo -e "${BOLD}ヘルスチェック：${RESET}"
-  echo -e "  ${YELLOW}curl http://localhost:8000/health${RESET}   # cocoro-core"
-  echo -e "  ${YELLOW}curl http://localhost:8002/health${RESET}   # cocoro-agent"
-  echo -e "  ${YELLOW}curl http://localhost:3000${RESET}          # cocoro-console"
+  echo -e "  アップデート       : ${YELLOW}curl -fsSL https://raw.githubusercontent.com/mdl-systems/cocoro-installer/main/update.sh | bash${RESET}"
+  echo -e "  アンインストール   : ${YELLOW}curl -fsSL https://raw.githubusercontent.com/mdl-systems/cocoro-installer/main/uninstall.sh | bash${RESET}"
   echo ""
   hr
 }

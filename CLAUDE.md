@@ -142,6 +142,8 @@ cat /etc/cocoro-release
 ```
 cocoro-installer/
 ├── install.sh                        # ワンライナーインストーラー ★メイン
+├── update.sh                         # 全サービスアップデーター
+├── uninstall.sh                      # アンインストーラー
 ├── usb/
 │   ├── preseed.cfg                   # Debian 自動応答設定
 │   ├── cocoro/
@@ -157,7 +159,7 @@ cocoro-installer/
 └── .gitattributes                    # LF改行コード強制
 ```
 
-> `http/` `scripts/` `build.pkr.hcl` はレガシーファイル。現在は `install.sh` および `usb/` 配下を使用。
+> `http/` `scripts/` `build.pkr.hcl` はレガシーファイル。現在は `install.sh` `update.sh` `uninstall.sh` および `usb/` 配下を使用。
 
 ---
 
@@ -177,3 +179,4 @@ cocoro-installer/
 |------|---------|
 | 2026-03-08 | 初版作成 |
 | 2026-03-14 | フルスタック対応: install.sh 追加、firstboot.sh を全サービス対応に更新 |
+| 2026-03-14 | v1.0.0 リリース: update.sh ・ uninstall.sh 追加、バナー・完了画面を最終仕上げ |

@@ -16,16 +16,42 @@ USB ブート → GRUB 自動選択(3秒) → Debian 無人インストール
 既存の Debian/Ubuntu 環境に Cocoro OS をインストールする場合：
 
 ```bash
-curl -fsSL https://install.cocoro.ai | bash
+curl -fsSL https://raw.githubusercontent.com/mdl-systems/cocoro-installer/main/install.sh | bash
 ```
 
 インストール時に対話的に以下を設定します：
 
 | 設定項目 | 説明 |
 |---|---|
-| `GEMINI_API_KEY` | Google AI Studio のAPIキー |
+| `GEMINI_API_KEY` | Google AI Studio の API キー |
 | `MINIPC_IP` | miniPC の IP アドレス (例: 192.168.50.92) |
-| `COCORO_API_KEY` | クライアント接続用 APIキー (デフォルト: cocoro-2026) |
+| `COCORO_API_KEY` | クライアント接続用 API キー (デフォルト: cocoro-2026) |
+
+## 管理スクリプト
+
+| スクリプト | 用途 | コマンド |
+|---|---|---|
+| `install.sh` | 初回インストール | `curl -fsSL .../install.sh \| bash` |
+| `update.sh` | 全サービス更新 | `curl -fsSL .../update.sh \| bash` |
+| `uninstall.sh` | アンインストール | `curl -fsSL .../uninstall.sh \| bash` |
+
+### アップデート
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/mdl-systems/cocoro-installer/main/update.sh | bash
+```
+
+全リポジトリを `git pull` して `docker compose up -d --build` を実行します。
+
+### アンインストール
+
+```bash
+# リポジトリ・コンテナ・イメージ・ボリュームを削除（データは保持）
+curl -fsSL https://raw.githubusercontent.com/mdl-systems/cocoro-installer/main/uninstall.sh | bash
+
+# 永続データ (PostgreSQL, Redis) も含めて完全削除
+curl -fsSL https://raw.githubusercontent.com/mdl-systems/cocoro-installer/main/uninstall.sh | bash -s -- --purge
+```
 
 ## 自動インストールされるサービス
 
@@ -35,6 +61,12 @@ curl -fsSL https://install.cocoro.ai | bash
 | cocoro-core | 8000 | メイン AI エンジン (Personality / Memory / Emotion) |
 | cocoro-agent | 8002 | 専門職エージェント (ECHO, IRIS 等) |
 | cocoro-console | 3000 | ブラウザ UI コンソール |
+
+### インストール後のアクセス
+
+1. ブラウザで `http://<miniPC の IP>` にアクセス
+2. **Boot Wizard** で人格設定（40問）
+3. AI と会話を始めよう！
 
 ### ヘルスチェック
 
@@ -118,6 +150,8 @@ chmod +x usb/deploy-to-usb.sh
 ```
 cocoro-installer/
 ├── install.sh                        # ワンライナーインストーラー ★メイン
+├── update.sh                         # 全サービスアップデート
+├── uninstall.sh                      # アンインストーラー
 ├── usb/                              # USB インストーラー関連
 │   ├── preseed.cfg                   # Debian 自動応答設定
 │   ├── cocoro/
@@ -173,6 +207,11 @@ curl http://localhost:3000          # cocoro-console
 | RAM | 8GB〜16GB |
 | NIC | Intel I225-V (Ethernet) |
 | ブート | UEFI |
+
+## リンク
+
+- 📚 ドキュメント: [https://docs.cocoro.ai](https://docs.cocoro.ai)
+- 🐙 GitHub: [https://github.com/mdl-systems](https://github.com/mdl-systems)
 
 ## ライセンス
 
