@@ -34,6 +34,7 @@ curl -fsSL https://raw.githubusercontent.com/mdl-systems/cocoro-installer/main/i
 | `install.sh` | 初回インストール | `curl -fsSL .../install.sh \| bash` |
 | `update.sh` | 全サービス更新 | `curl -fsSL .../update.sh \| bash` |
 | `uninstall.sh` | アンインストール | `curl -fsSL .../uninstall.sh \| bash` |
+| `scripts/setup-tunnel.sh` | Cloudflare Tunnel 設定 | `sudo ./scripts/setup-tunnel.sh` |
 
 ### アップデート
 
@@ -52,6 +53,44 @@ curl -fsSL https://raw.githubusercontent.com/mdl-systems/cocoro-installer/main/u
 # 永続データ (PostgreSQL, Redis) も含めて完全削除
 curl -fsSL https://raw.githubusercontent.com/mdl-systems/cocoro-installer/main/uninstall.sh | bash -s -- --purge
 ```
+
+## Cloudflare Tunnel（外部アクセス）
+
+各ノードに `{NODE_ID}.cocoro-os.com` のユニークなサブドメインを自動割り当てします。
+
+```bash
+# インストール時に対話式で設定（install.sh が自動呼び出し）
+# または後から手動で実行：
+sudo CLOUDFLARE_API_TOKEN=xxxx \
+     CLOUDFLARE_ACCOUNT_ID=yyyy \
+     CLOUDFLARE_ZONE_ID=zzzz \
+     ./scripts/setup-tunnel.sh
+```
+
+インストール後のアクセス例：
+
+| エンドポイント | URL |
+|---|---|
+| コンソール (UI) | `https://a1b2c3.cocoro-os.com` |
+| API | `https://api.a1b2c3.cocoro-os.com` |
+| エージェント | `https://agent.a1b2c3.cocoro-os.com` |
+
+**必要な環境変数（出荷時に `/etc/cocoro-tunnel.env` に設定）：**
+
+```bash
+CLOUDFLARE_API_TOKEN=     # Cloudflare API トークン
+CLOUDFLARE_ACCOUNT_ID=    # Cloudflare アカウント ID
+CLOUDFLARE_ZONE_ID=       # cocoro-os.com の Zone ID
+```
+
+管理コマンド：
+
+```bash
+systemctl status cloudflared      # Tunnel 状態確認
+journalctl -u cloudflared -f      # ログ確認
+cat /etc/cocoro-node.json         # ノード情報確認
+```
+
 
 ## 自動インストールされるサービス
 

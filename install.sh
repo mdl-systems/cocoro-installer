@@ -137,11 +137,36 @@ interactive_setup() {
   echo ""
   hr
 
+  # Cloudflare Tunnel（任意）
+  echo -e "\n${BOLD}Cloudflare Tunnel の設定（任意 / スキップ可）：${RESET}"
+  echo -e "${CYAN}  → 外部からのアクセスに使用します (例: https://a1b2c3.cocoro-os.com)${RESET}"
+  echo -e "${CYAN}  → スキップする場合はそのまま Enter を押してください${RESET}"
+  echo ""
+  read -r -p "  CLOUDFLARE_API_TOKEN    : " CLOUDFLARE_API_TOKEN
+  if [[ -n "${CLOUDFLARE_API_TOKEN}" ]]; then
+    read -r -p "  CLOUDFLARE_ACCOUNT_ID   : " CLOUDFLARE_ACCOUNT_ID
+    read -r -p "  CLOUDFLARE_ZONE_ID      : " CLOUDFLARE_ZONE_ID
+    SETUP_TUNNEL=true
+  else
+    info "Cloudflare Tunnel の設定をスキップします（後から ./scripts/setup-tunnel.sh で実行可能）"
+    SETUP_TUNNEL=false
+    CLOUDFLARE_API_TOKEN=""
+    CLOUDFLARE_ACCOUNT_ID=""
+    CLOUDFLARE_ZONE_ID=""
+  fi
+
+  hr
+
   # 確認表示
   echo -e "\n${BOLD}設定確認：${RESET}"
   echo -e "  GEMINI_API_KEY : ${GREEN}${GEMINI_API_KEY:0:8}...（マスク済み）${RESET}"
   echo -e "  MINIPC_IP      : ${GREEN}${MINIPC_IP}${RESET}"
   echo -e "  COCORO_API_KEY : ${GREEN}${COCORO_API_KEY}${RESET}"
+  if $SETUP_TUNNEL; then
+    echo -e "  Cloudflare     : ${GREEN}設定あり（Tunnel を自動作成します）${RESET}"
+  else
+    echo -e "  Cloudflare     : ${YELLOW}スキップ（ローカルアクセスのみ）${RESET}"
+  fi
   echo ""
   read -r -p "この設定で続行しますか？ [Y/n]: " CONFIRM
   CONFIRM="${CONFIRM:-Y}"
@@ -384,6 +409,45 @@ health_check() {
 }
 
 # ----------------------------------------------------------------------------
+# Cloudflare Tunnel セットアップ（任意）
+# ----------------------------------------------------------------------------
+setup_cloudflare_tunnel() {
+  if [[ "${SETUP_TUNNEL:-false}" != "true" ]]; then
+    info "Cloudflare Tunnel セットアップをスキップします"
+    return
+  fi
+
+  step "Cloudflare Tunnel セットアップ"
+
+  local script_dir
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  local tunnel_script="${script_dir}/scripts/setup-tunnel.sh"
+
+  if [ ! -f "${tunnel_script}" ]; then
+    warn "setup-tunnel.sh が見つかりません: ${tunnel_script}"
+    warn "スキップします。後から手動で実行できます"
+    return
+  fi
+
+  chmod +x "${tunnel_script}"
+
+  # 環境変数を渡して実行
+  CLOUDFLARE_API_TOKEN="${CLOUDFLARE_API_TOKEN}" \
+  CLOUDFLARE_ACCOUNT_ID="${CLOUDFLARE_ACCOUNT_ID}" \
+  CLOUDFLARE_ZONE_ID="${CLOUDFLARE_ZONE_ID}" \
+  sudo "${tunnel_script}" || {
+    warn "Cloudflare Tunnel セットアップに失敗しました"
+    warn "後から手動で実行できます: sudo ./scripts/setup-tunnel.sh"
+  }
+
+  # NODE_ID を取得（完了画面表示用）
+  if [ -f /etc/cocoro-node-id ]; then
+    TUNNEL_NODE_ID=$(cat /etc/cocoro-node-id)
+    TUNNEL_PUBLIC_URL="https://${TUNNEL_NODE_ID}.cocoro-os.com"
+  fi
+}
+
+# ----------------------------------------------------------------------------
 # 完了メッセージ
 # ----------------------------------------------------------------------------
 print_summary() {
@@ -398,7 +462,14 @@ print_summary() {
   echo -e "   ブラウザ: ${CYAN}http://${node_ip}${RESET}       (cocoro-console)"
   echo -e "   API:     ${CYAN}http://${node_ip}:8000${RESET}   (cocoro-core)"
   echo -e "   Agent:   ${CYAN}http://${node_ip}:8002${RESET}   (cocoro-agent)"
-  echo ""
+
+  # Cloudflare Tunnel が有効なら外部URLも表示
+  if [[ -n "${TUNNEL_PUBLIC_URL:-}" ]]; then
+    echo ""
+    echo -e "   ${BOLD}🌐 外部アクセス (Cloudflare Tunnel)：${RESET}"
+    echo -e "   ${BOLD}${GREEN}https://${TUNNEL_NODE_ID:-}.cocoro-os.com${RESET}"
+  fi
+
   echo -e "${BOLD}🚀 次のステップ：${RESET}"
   echo -e "   1. ブラウザでアクセス → ${CYAN}http://${node_ip}${RESET}"
   echo -e "   2. Boot Wizard で人格設定（40問）"
@@ -435,6 +506,7 @@ main() {
   install_console
 
   health_check
+  setup_cloudflare_tunnel
   print_summary
 }
 

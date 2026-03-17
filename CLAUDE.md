@@ -154,6 +154,9 @@ cocoro-installer/
 │   └── isolinux-txt.cfg              # BIOSブートメニュー設定
 ├── http/                             # Packer HTTPサーバー用（レガシー）
 ├── scripts/                          # Packerスクリプト（レガシー）
+│   ├── setup.sh                      # Packerセットアップ（レガシー）
+│   ├── firstboot.sh                  # Packer firstboot（レガシー）
+│   └── setup-tunnel.sh               # Cloudflare Tunnel 自動セットアップ
 ├── build.pkr.hcl                     # Packerビルド定義（レガシー）
 ├── Makefile
 └── .gitattributes                    # LF改行コード強制
@@ -180,3 +183,4 @@ cocoro-installer/
 | 2026-03-08 | 初版作成 |
 | 2026-03-14 | フルスタック対応: install.sh 追加、firstboot.sh を全サービス対応に更新 |
 | 2026-03-14 | v1.0.0 リリース: update.sh ・ uninstall.sh 追加、バナー・完了画面を最終仕上げ |
+| 2026-03-17 | Cloudflare Tunnel 自動セットアップ: scripts/setup-tunnel.sh 追加 |
