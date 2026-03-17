@@ -65,7 +65,7 @@ if [ -f /etc/cocoro-node-id ]; then
   NODE_ID=$(cat /etc/cocoro-node-id)
   info "既存の NODE_ID を再利用します: ${NODE_ID}"
 else
-  NODE_ID=$(cat /dev/urandom | tr -dc 'a-z0-9' | head -c 6)
+  NODE_ID=$(openssl rand -hex 3)
   echo "${NODE_ID}" > /etc/cocoro-node-id
   chmod 644 /etc/cocoro-node-id
   success "NODE_ID を生成しました: ${NODE_ID}"
