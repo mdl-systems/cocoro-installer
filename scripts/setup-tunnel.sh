@@ -327,6 +327,45 @@ EOF
 chmod 644 /etc/cocoro-node.json
 
 # ============================================================================
+# Step 8: cocoro-console の起動確認・自動起動設定
+# ============================================================================
+step "Step 8/8 — Starting cocoro-console and verifying localhost:80"
+
+readonly CONSOLE_COMPOSE="/home/cocoro-admin/cocoro-console/docker-compose.yml"
+CONSOLE_OK=false
+
+# 1. docker compose で cocoro-console を起動
+if [ -f "${CONSOLE_COMPOSE}" ]; then
+  info "cocoro-console を起動しています..."
+  docker compose -f "${CONSOLE_COMPOSE}" up -d && \
+    success "docker compose up -d 完了" || \
+    warn "docker compose up -d でエラーが発生しました（続行）"
+else
+  warn "docker-compose.yml が見つかりません: ${CONSOLE_COMPOSE}"
+  warn "cocoro-console が正しくインストールされているか確認してください"
+fi
+
+# 2. localhost:80 への疎通確認（最大30秒待機）
+info "localhost:80 への疎通確認（最大30秒）..."
+for i in $(seq 1 30); do
+  if curl -sf --max-time 2 "http://localhost:80" > /dev/null 2>&1; then
+    CONSOLE_OK=true
+    break
+  fi
+  sleep 1
+done
+
+# 3. 疎通結果に応じてメッセージ表示
+if $CONSOLE_OK; then
+  success "localhost:80 への接続を確認しました ✅"
+  success "Cloudflare Tunnel 経由で https://${TUNNEL_HOSTNAME} からアクセス可能です"
+else
+  warn "localhost:80 への接続を確認できませんでした ❌"
+  warn "cocoro-console が起動していない可能性があります"
+  warn "確認コマンド: docker compose -f ${CONSOLE_COMPOSE} logs"
+fi
+
+# ============================================================================
 # 完了メッセージ
 # ============================================================================
 echo ""
