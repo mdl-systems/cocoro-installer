@@ -181,6 +181,7 @@ TUNNEL_TOKEN=$(echo "${TOKEN_RESPONSE}" | python3 -c \
   "import sys,json; print(json.load(sys.stdin)['result'])")
 
 # トークンをファイルに保存（systemd サービスから参照）
+mkdir -p "${CLOUDFLARED_CONFIG_DIR}"
 echo "${TUNNEL_TOKEN}" > "${CLOUDFLARED_CONFIG_DIR}/.tunnel-token"
 chmod 600 "${CLOUDFLARED_CONFIG_DIR}/.tunnel-token"
 
