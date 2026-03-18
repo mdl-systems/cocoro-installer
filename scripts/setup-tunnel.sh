@@ -7,7 +7,10 @@
 #   外部から https://{NODE_ID}.cocoro-os.com でアクセスできるようにする。
 #
 # 実行方法:
-#   sudo ./scripts/setup-tunnel.sh
+#   sudo ./scripts/setup-tunnel.sh [--email owner@example.com]
+#
+# オプション:
+#   --email EMAIL   オーナーのメールアドレス。指定時に Cloudflare Access を自動設定する
 #
 # 環境変数（スクリプト内にデフォルト値設定済み、必要に応じて上書き可）:
 #   CLOUDFLARE_API_TOKEN
@@ -15,6 +18,34 @@
 #   CLOUDFLARE_ZONE_ID
 # ============================================================================
 set -euo pipefail
+
+# ============================================================================
+# 引数パース
+# ============================================================================
+OWNER_EMAIL=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --email)
+      OWNER_EMAIL="${2:-}"
+      shift 2
+      ;;
+    --email=*)
+      OWNER_EMAIL="${1#--email=}"
+      shift
+      ;;
+    -h|--help)
+      echo "Usage: sudo $0 [--email owner@example.com]"
+      echo ""
+      echo "  --email EMAIL   オーナーのメールアドレス。指定時に Cloudflare Access を自動設定する"
+      exit 0
+      ;;
+    *)
+      echo "[WARN] 未知のオプション: $1"
+      shift
+      ;;
+  esac
+done
 
 # ============================================================================
 # 環境変数 — デフォルト値（出荷時設定）
@@ -363,6 +394,134 @@ else
   warn "localhost:80 への接続を確認できませんでした ❌"
   warn "cocoro-console が起動していない可能性があります"
   warn "確認コマンド: docker compose -f ${CONSOLE_COMPOSE} logs"
+fi
+
+# ============================================================================
+# Step 9: Cloudflare Access 自動設定（--email 指定時のみ実行）
+# ============================================================================
+if [[ -n "${OWNER_EMAIL}" ]]; then
+  step "Step 9/9 — Configuring Cloudflare Access (owner-only policy)"
+  info "オーナーメール: ${OWNER_EMAIL}"
+  info "保護対象 : https://${TUNNEL_HOSTNAME}"
+
+  # --------------------------------------------------------------------------
+  # 9-1. Access Application を作成
+  # POST /accounts/{ACCOUNT_ID}/access/apps
+  # --------------------------------------------------------------------------
+  info "Cloudflare Access Application を作成しています..."
+
+  APP_RESPONSE=$(curl -fsSL -X POST \
+    "${API_BASE}/accounts/${CLOUDFLARE_ACCOUNT_ID}/access/apps" \
+    -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+    -H "Content-Type: application/json" \
+    --data "{
+      \"name\": \"Cocoro OS — ${TUNNEL_NAME}\",
+      \"domain\": \"${TUNNEL_HOSTNAME}\",
+      \"type\": \"self_hosted\",
+      \"session_duration\": \"24h\",
+      \"auto_redirect_to_identity\": false,
+      \"http_only_cookie_attribute\": true,
+      \"same_site_cookie_attribute\": \"strict\"
+    }")
+
+  APP_SUCCESS=$(echo "${APP_RESPONSE}" | python3 -c \
+    "import sys,json; print(json.load(sys.stdin).get('success', False))" 2>/dev/null || echo "False")
+
+  if [ "${APP_SUCCESS}" != "True" ]; then
+    warn "Access Application の作成に失敗しました"
+    warn "レスポンス: ${APP_RESPONSE}"
+    warn "Step 9 をスキップします（後からダッシュボードで設定可能）"
+  else
+    APP_ID=$(echo "${APP_RESPONSE}" | python3 -c \
+      "import sys,json; print(json.load(sys.stdin)['result']['id'])")
+    success "Access Application 作成完了: ${APP_ID}"
+
+    # ------------------------------------------------------------------------
+    # 9-2. owner-only Policy を作成
+    # POST /accounts/{ACCOUNT_ID}/access/policies
+    # ------------------------------------------------------------------------
+    info "owner-only ポリシーを作成しています..."
+
+    POLICY_RESPONSE=$(curl -fsSL -X POST \
+      "${API_BASE}/accounts/${CLOUDFLARE_ACCOUNT_ID}/access/policies" \
+      -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+      -H "Content-Type: application/json" \
+      --data "{
+        \"name\": \"Owner Only — ${TUNNEL_NAME}\",
+        \"decision\": \"allow\",
+        \"include\": [
+          {
+            \"email\": { \"email\": \"${OWNER_EMAIL}\" }
+          }
+        ],
+        \"exclude\": [],
+        \"require\": [],
+        \"precedence\": 1
+      }")
+
+    POLICY_SUCCESS=$(echo "${POLICY_RESPONSE}" | python3 -c \
+      "import sys,json; print(json.load(sys.stdin).get('success', False))" 2>/dev/null || echo "False")
+
+    if [ "${POLICY_SUCCESS}" != "True" ]; then
+      warn "ポリシーの作成に失敗しました"
+      warn "レスポンス: ${POLICY_RESPONSE}"
+    else
+      POLICY_ID=$(echo "${POLICY_RESPONSE}" | python3 -c \
+        "import sys,json; print(json.load(sys.stdin)['result']['id'])")
+      success "Policy 作成完了: ${POLICY_ID}"
+
+      # ----------------------------------------------------------------------
+      # 9-3. Application に Policy を紐付け
+      # PUT /accounts/{ACCOUNT_ID}/access/apps/{APP_ID}
+      # ----------------------------------------------------------------------
+      info "Application に Policy を紐付けています..."
+
+      BIND_RESPONSE=$(curl -fsSL -X PUT \
+        "${API_BASE}/accounts/${CLOUDFLARE_ACCOUNT_ID}/access/apps/${APP_ID}" \
+        -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+        -H "Content-Type: application/json" \
+        --data "{
+          \"name\": \"Cocoro OS — ${TUNNEL_NAME}\",
+          \"domain\": \"${TUNNEL_HOSTNAME}\",
+          \"type\": \"self_hosted\",
+          \"session_duration\": \"24h\",
+          \"policies\": [
+            { \"id\": \"${POLICY_ID}\" }
+          ]
+        }")
+
+      BIND_SUCCESS=$(echo "${BIND_RESPONSE}" | python3 -c \
+        "import sys,json; print(json.load(sys.stdin).get('success', False))" 2>/dev/null || echo "False")
+
+      if [ "${BIND_SUCCESS}" == "True" ]; then
+        success "Policy を Application に紐付けました ✅"
+        success "${TUNNEL_HOSTNAME} は ${OWNER_EMAIL} のみアクセス可能です"
+
+        # Access 情報をノード JSON に追記
+        python3 -c "
+import json
+try:
+    with open('/etc/cocoro-node.json') as f:
+        node = json.load(f)
+except Exception:
+    node = {}
+node['access_app_id']   = '${APP_ID}'
+node['access_policy_id'] = '${POLICY_ID}'
+node['access_owner']     = '${OWNER_EMAIL}'
+with open('/etc/cocoro-node.json', 'w') as f:
+    json.dump(node, f, indent=2, ensure_ascii=False)
+print('node.json updated')
+" 2>/dev/null || true
+
+      else
+        warn "Policy 紐付けに失敗しました"
+        warn "手動で Cloudflare ダッシュボードから紐付けてください"
+      fi
+    fi
+  fi
+else
+  info "--email 未指定のため Cloudflare Access 設定をスキップします"
+  info "後から追加する場合: sudo $0 --email your@email.com"
 fi
 
 # ============================================================================
