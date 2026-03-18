@@ -224,34 +224,49 @@ success "Tunnel トークンを取得・保存しました"
 # ============================================================================
 step "Step 5/7 — Creating DNS CNAME record"
 
-info "CNAME レコードを作成しています: ${TUNNEL_HOSTNAME} → ${TUNNEL_ID}.cfargotunnel.com"
+# --- 既存レコードの確認 ---
+info "既存の DNS レコードを確認しています: ${TUNNEL_HOSTNAME}"
 
-DNS_RESPONSE=$(curl -fsSL -X POST \
-  "${API_BASE}/zones/${CLOUDFLARE_ZONE_ID}/dns_records" \
+EXISTING_DNS=$(curl -fsSL \
+  "${API_BASE}/zones/${CLOUDFLARE_ZONE_ID}/dns_records?name=${NODE_ID}.${DOMAIN}&type=CNAME" \
   -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
   -H "Content-Type: application/json" \
-  --data "{
-    \"type\": \"CNAME\",
-    \"name\": \"${NODE_ID}.${DOMAIN}\",
-    \"content\": \"${TUNNEL_ID}.cfargotunnel.com\",
-    \"ttl\": 1,
-    \"proxied\": true,
-    \"comment\": \"Auto-created by cocoro-installer node=${NODE_ID}\"
-  }" 2>/dev/null || echo '{"success":false,"errors":[{"message":"request failed"}]}')
+  | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+result = data.get('result', [])
+print(result[0]['id'] if result else '')
+" 2>/dev/null || echo "")
 
-DNS_SUCCESS=$(echo "${DNS_RESPONSE}" | python3 -c \
-  "import sys,json; print(json.load(sys.stdin).get('success', False))" 2>/dev/null || echo "False")
-
-if [ "${DNS_SUCCESS}" == "True" ]; then
-  success "DNS CNAME レコードを作成しました: https://${TUNNEL_HOSTNAME}"
+if [ -n "${EXISTING_DNS}" ]; then
+  # 既存レコードが見つかった → スキップ
+  success "DNS CNAME レコードは既に存在します（スキップ）: https://${TUNNEL_HOSTNAME}"
 else
-  DNS_ERROR=$(echo "${DNS_RESPONSE}" | python3 -c \
-    "import sys,json; r=json.load(sys.stdin).get('errors',[]); print(r[0].get('message','unknown') if r else 'unknown')" \
-    2>/dev/null || echo "unknown")
+  # 存在しない → 新規作成
+  info "DNS CNAME レコードを作成しています: ${TUNNEL_HOSTNAME} → ${TUNNEL_ID}.cfargotunnel.com"
 
-  if echo "${DNS_ERROR}" | grep -qi "already exists"; then
-    warn "DNS レコードは既に存在します（スキップ）"
+  DNS_RESPONSE=$(curl -fsSL -X POST \
+    "${API_BASE}/zones/${CLOUDFLARE_ZONE_ID}/dns_records" \
+    -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+    -H "Content-Type: application/json" \
+    --data "{
+      \"type\": \"CNAME\",
+      \"name\": \"${NODE_ID}.${DOMAIN}\",
+      \"content\": \"${TUNNEL_ID}.cfargotunnel.com\",
+      \"ttl\": 1,
+      \"proxied\": true,
+      \"comment\": \"Auto-created by cocoro-installer node=${NODE_ID}\"
+    }" 2>/dev/null || echo '{"success":false,"errors":[{"message":"request failed"}]}')
+
+  DNS_SUCCESS=$(echo "${DNS_RESPONSE}" | python3 -c \
+    "import sys,json; print(json.load(sys.stdin).get('success', False))" 2>/dev/null || echo "False")
+
+  if [ "${DNS_SUCCESS}" == "True" ]; then
+    success "DNS CNAME レコードを作成しました: https://${TUNNEL_HOSTNAME}"
   else
+    DNS_ERROR=$(echo "${DNS_RESPONSE}" | python3 -c \
+      "import sys,json; r=json.load(sys.stdin).get('errors',[]); print(r[0].get('message','unknown') if r else 'unknown')" \
+      2>/dev/null || echo "unknown")
     warn "DNS レコード作成エラー: ${DNS_ERROR}"
     warn "手動で CNAME ${NODE_ID} → ${TUNNEL_ID}.cfargotunnel.com を設定してください"
   fi
