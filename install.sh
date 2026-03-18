@@ -134,27 +134,6 @@ interactive_setup() {
   read -r -p "  COCORO_API_KEY [cocoro-2026]: " COCORO_API_KEY
   COCORO_API_KEY="${COCORO_API_KEY:-cocoro-2026}"
 
-  echo ""
-  hr
-
-  # Cloudflare Tunnel（任意）
-  echo -e "\n${BOLD}Cloudflare Tunnel の設定（任意 / スキップ可）：${RESET}"
-  echo -e "${CYAN}  → 外部からのアクセスに使用します (例: https://a1b2c3.cocoro-os.com)${RESET}"
-  echo -e "${CYAN}  → スキップする場合はそのまま Enter を押してください${RESET}"
-  echo ""
-  read -r -p "  CLOUDFLARE_API_TOKEN    : " CLOUDFLARE_API_TOKEN
-  if [[ -n "${CLOUDFLARE_API_TOKEN}" ]]; then
-    read -r -p "  CLOUDFLARE_ACCOUNT_ID   : " CLOUDFLARE_ACCOUNT_ID
-    read -r -p "  CLOUDFLARE_ZONE_ID      : " CLOUDFLARE_ZONE_ID
-    SETUP_TUNNEL=true
-  else
-    info "Cloudflare Tunnel の設定をスキップします（後から ./scripts/setup-tunnel.sh で実行可能）"
-    SETUP_TUNNEL=false
-    CLOUDFLARE_API_TOKEN=""
-    CLOUDFLARE_ACCOUNT_ID=""
-    CLOUDFLARE_ZONE_ID=""
-  fi
-
   hr
 
   # 確認表示
@@ -162,11 +141,6 @@ interactive_setup() {
   echo -e "  GEMINI_API_KEY : ${GREEN}${GEMINI_API_KEY:0:8}...（マスク済み）${RESET}"
   echo -e "  MINIPC_IP      : ${GREEN}${MINIPC_IP}${RESET}"
   echo -e "  COCORO_API_KEY : ${GREEN}${COCORO_API_KEY}${RESET}"
-  if $SETUP_TUNNEL; then
-    echo -e "  Cloudflare     : ${GREEN}設定あり（Tunnel を自動作成します）${RESET}"
-  else
-    echo -e "  Cloudflare     : ${YELLOW}スキップ（ローカルアクセスのみ）${RESET}"
-  fi
   echo ""
   read -r -p "この設定で続行しますか？ [Y/n]: " CONFIRM
   CONFIRM="${CONFIRM:-Y}"
@@ -409,41 +383,41 @@ health_check() {
 }
 
 # ----------------------------------------------------------------------------
-# Cloudflare Tunnel セットアップ（任意）
+# Cloudflare Tunnel セットアップ（最終ステップ・対話式）
 # ----------------------------------------------------------------------------
 setup_cloudflare_tunnel() {
-  if [[ "${SETUP_TUNNEL:-false}" != "true" ]]; then
-    info "Cloudflare Tunnel セットアップをスキップします"
-    return
-  fi
-
   step "Cloudflare Tunnel セットアップ"
+
+  echo ""
+  echo "Cloudflare Tunnel をセットアップしますか？"
+  echo "外部から https://{NODE_ID}.cocoro-os.com でアクセスできるようになります。"
+  read -r -p "オーナーのメールアドレスを入力（スキップ: Enterのみ）: " OWNER_EMAIL
 
   local script_dir
   script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   local tunnel_script="${script_dir}/scripts/setup-tunnel.sh"
 
-  if [ ! -f "${tunnel_script}" ]; then
-    warn "setup-tunnel.sh が見つかりません: ${tunnel_script}"
-    warn "スキップします。後から手動で実行できます"
-    return
-  fi
+  if [ -n "${OWNER_EMAIL}" ]; then
+    if [ ! -f "${tunnel_script}" ]; then
+      warn "setup-tunnel.sh が見つかりません: ${tunnel_script}"
+      warn "後から手動で実行できます: sudo bash scripts/setup-tunnel.sh --email ${OWNER_EMAIL}"
+      return
+    fi
 
-  chmod +x "${tunnel_script}"
+    chmod +x "${tunnel_script}"
+    bash "${tunnel_script}" --email "${OWNER_EMAIL}" || {
+      warn "Cloudflare Tunnel セットアップに失敗しました"
+      warn "後から手動で実行できます: sudo bash scripts/setup-tunnel.sh --email ${OWNER_EMAIL}"
+    }
 
-  # 環境変数を渡して実行
-  CLOUDFLARE_API_TOKEN="${CLOUDFLARE_API_TOKEN}" \
-  CLOUDFLARE_ACCOUNT_ID="${CLOUDFLARE_ACCOUNT_ID}" \
-  CLOUDFLARE_ZONE_ID="${CLOUDFLARE_ZONE_ID}" \
-  sudo "${tunnel_script}" || {
-    warn "Cloudflare Tunnel セットアップに失敗しました"
-    warn "後から手動で実行できます: sudo ./scripts/setup-tunnel.sh"
-  }
-
-  # NODE_ID を取得（完了画面表示用）
-  if [ -f /etc/cocoro-node-id ]; then
-    TUNNEL_NODE_ID=$(cat /etc/cocoro-node-id)
-    TUNNEL_PUBLIC_URL="https://${TUNNEL_NODE_ID}.cocoro-os.com"
+    # NODE_ID を取得（完了画面表示用）
+    if [ -f /etc/cocoro-node-id ]; then
+      TUNNEL_NODE_ID=$(cat /etc/cocoro-node-id)
+      TUNNEL_PUBLIC_URL="https://${TUNNEL_NODE_ID}.cocoro-os.com"
+    fi
+  else
+    echo "Tunnel セットアップをスキップしました。"
+    echo "後から実行: sudo bash scripts/setup-tunnel.sh --email your@email.com"
   fi
 }
 
